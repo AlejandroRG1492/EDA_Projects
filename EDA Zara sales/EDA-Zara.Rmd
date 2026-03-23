@@ -1,0 +1,239 @@
+---
+title: "Zara Sales"
+author: "Alejandro Rodriguez"
+date: "2026-03-23"
+output:
+  html_document:
+    df_print: paged
+  toc: true
+  toc_depth: 3
+  toc_float: true
+  number_sections: true
+  pdf_document:
+    latex_engine: xelatex
+editor_options:
+  markdown:
+    wrap: sentence
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, 
+                      warning = FALSE, 
+                      message = FALSE, 
+                      fig.pos = "!H")
+```
+
+## Introduction
+
+This analysis explores a retail dataset focused on product sales performance, pricing behavior, and customer segmentation.
+It aims to identify key sales drivers, evaluate demand patterns across product categories, and assess the impact of pricing and seasonality.
+Through exploratory data analysis, insights are generated to understand which products contribute most to overall sales and how stable their demand is.
+Additionally, the study examines customer distribution to uncover opportunities for market growth.
+
+## Data description
+
+The following table shows the first 6 records of the dataset:
+
+```{r, echo=FALSE}
+library(tidyverse)
+zara <- read.csv("C:/Users/aleja/Documents/EDA Projects/DataSet Zara/Parte 1/zara.csv", sep=";", stringsAsFactors=TRUE)
+head(zara)
+
+
+```
+
+The table consists of 16 columns and 256 records (rows), making it a relatively small dataset.
+Each column has a specific meaning (metadata), which are:
+
+• **Product ID**: Unique identifier for each product.
+
+• **ProductPosition**: Position of the product in the catalog or store layout (“Aisle”, “End-cap”, “Front of Store”).
+
+• **Promotion**: Indicates whether the product is currently on promotion (“Yes” or “No”).
+
+• **Product Category**: Category of the product (“Clothing”).
+
+• **Seasonal**: Indicates whether the product is part of a specific seasonal collection (“Yes” or “No”).
+
+• **Sales Volume**: Number of units sold.
+
+• **Brand**: Product brand (Zara).
+
+• **URL**: Product link (for example, if the product is sold online).
+
+• **SKU**: Stock Keeping Unit, a unique code used to identify items available for sale.
+
+• **Name**: Product name.
+
+• **Description**: Product description.
+
+• **Price**: Product price.
+
+• **Currency**: Currency of the product price (USD).
+
+• **Scraped_at**: The time when the data was extracted (for example, during a web scraping process).
+
+• **Terms**: Product categories or tags (“jackets”, “shoes”, “sweaters”, “jeans”, “t-shirts”).
+
+• **Section**: Section or category where the product is sold in the store (“MAN” or “WOMAN”).
+
+The table does not contain missing values in any of its columns.
+The only columns with numerical values are Product ID, Sales Volume, and Price.
+
+```{r}
+summary(zara)
+```
+
+The previous table appears to show no missing values in any of the columns.
+To visually confirm this, it can be verified in the following chart:
+
+```{r}
+library(naniar)
+naniar::vis_miss(zara)
+```
+
+100% of the dataset records are present and contain data.
+
+At this stage, there is no need to perform data cleaning in order to proceed with the analysis.
+
+## Analysis
+
+The average total number of units sold is 1,823, with a standard deviation of 697.
+
+```{r}
+zara %>%
+summarise(N = sum(!is.na(Sales.Volume)),Media = mean(Sales.Volume, na.rm = TRUE),Standard_Deviation = sd(Sales.Volume, na.rm = TRUE))
+```
+
+The products with the highest number of sales records are Jackets and Sweaters:
+
+```{r}
+library(tidyverse)
+ggplot(zara, aes(x= reorder(terms, terms, FUN = length), fill=terms)) + geom_bar() + coord_flip()
+```
+
+The median sales volume (in units) is analyzed.
+The product with the highest median sales is Shoes (2,016 units), followed by Jackets (1,917 units).
+
+The product that likely has the most unpredictable sales is Sweaters (1,140 units at Q1 and 2,606 units at Q3), while the product with the most stable sales is Jeans (1,146 units at Q1 and 1,885 units at Q3).
+
+From a statistical standpoint, Jeans are less reliable due to having only 8 records.
+On the other hand, Jackets appear to be the most reliable category.
+
+```{r}
+library(gtsummary)
+tbl_summary(zara,include = c(Sales.Volume),by = "terms")
+
+zara %>%
+  group_by(terms) %>%
+  summarise(total_sales = sum(Sales.Volume, na.rm = TRUE)) %>%
+  mutate(percentage = total_sales / sum(total_sales))
+```
+
+Typically, 50% of the price records are concentrated between 50 USD and 110 USD.
+
+```{r}
+ggplot(data=zara,aes(x=price)) + geom_density()
+ggplot(data=zara,aes(x=price)) + geom_boxplot()
+```
+
+The average number of units sold by product type can be seen in the following table:
+
+```{r}
+zara %>%
+  group_by(terms) %>%
+  summarise(n = sum(!is.na(Sales.Volume)),Average_quantity = mean(Sales.Volume, na.rm = TRUE),
+            .groups = "drop") %>%
+  arrange(desc(Average_quantity))
+```
+
+At an overall level, there is no correlation between the sale price and the sales volume.
+
+```{r}
+library(ggstatsplot)
+ggscatterstats(data = zara,
+x = price,
+y = Sales.Volume)
+
+zara %>%
+summarise(correlacion_pearson= cor(price,Sales.Volume, use= "complete.obs", method= "pearson"))
+```
+
+The same applies when analyzing by product group.
+In the following case, this can be observed for Jackets, where the correlation is -0.04:
+
+```{r}
+library(dplyr)
+library(ggstatsplot)
+
+zara %>%
+  filter(terms == "sweaters") %>%
+  ggscatterstats(
+    x = price,
+    y = Sales.Volume
+  )
+```
+
+Additionally, a large portion of the price records are concentrated between 8 USD and 200 USD.
+Using a scatter plot, we can also identify the outlier products previously observed in the box plot:
+
+```{r}
+ggplot(zara, aes(x= price, y= Sales.Volume)) + geom_point() + geom_label(label.size= 0.01, data=zara %>% filter(price>200), aes(label=name))
+```
+
+When analyzing the categorical variables, we observe that the highest share of sales records corresponds to Jackets, accounting for 56%.
+
+```{r}
+tbl_summary(data= zara,include= c(terms))
+```
+
+When analyzing sales records by seasonality, we find that when there **is** a seasonal period, there are more sales records for Sweaters.
+Conversely, when there is **no** seasonal period, there are more sales records for Shoes and Jeans.
+
+Jackets and T-shirts appear to be unaffected by seasonality.
+
+```{r}
+tbl_summary(data= zara, include= c(terms), by= Seasonal, percent= "row") %>%
+  add_overall()
+
+ggplot(zara, aes(x = terms, fill=Seasonal)) + geom_bar(position = "dodge")
+ggplot(zara, aes(x = terms, fill=Seasonal)) + geom_bar(position = "fill")
+```
+
+86% of the sales are made by men, who purchase all product categories.
+In contrast, women account for 13% of the sales, with purchases recorded only for Sweaters.
+
+```{r}
+zara %>%
+  group_by(section) %>%
+  summarise(total_sales = sum(Sales.Volume, na.rm = TRUE)) %>%
+  mutate(porcentaje = total_sales / sum(total_sales))
+
+ggplot(zara, aes(x = terms, fill=section)) + geom_bar(position = "dodge")
+
+
+```
+
+The products that are typically more expensive are Jackets, while Sweaters tend to have lower prices.
+This can be visualized in the following chart:
+
+```{r}
+ggplot(data=zara,aes(y= price, x=terms)) + geom_boxplot()
+```
+
+## Insights and Conclusions
+
+The products with the highest number of sales records are Jackets and Sweaters.
+56% of the units sold correspond to Jackets, while 16% correspond to Sweaters.
+These products are essential to maintain at adequate inventory levels, as they account for 72% of total sales.
+
+From a statistical standpoint, Jeans are less reliable for demand forecasting due to having only 8 sales records.
+On the other hand, Jackets appear to be the most reliable category.
+
+Sales prices range from 8 USD to 200 USD, with 50% of sales concentrated between 50 USD and 110 USD.
+Additionally, there is no correlation between sale price and units sold (e.g., higher sales volumes do not necessarily correspond to lower prices, and vice versa).
+
+From a sales strategy perspective, efforts should be focused on the male customer segment, as they represent 86% of total sales.
+It could be inferred that men have greater purchasing power.
+On the other hand, as a growth opportunity, it is recommended to strengthen sales in the women’s segment.
+Initially, a strategy could involve offering better pricing for bulk purchases, particularly for products with seasonality.
